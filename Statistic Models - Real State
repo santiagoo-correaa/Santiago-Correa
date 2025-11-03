@@ -37,3 +37,24 @@ UR	Unemployment Rate
 MBONO	Yield of the Mexican 10-year government bond
 Population	Total population of Mexico
 CCI	Consumer Confidence Index
+
+
+
+Conclusion
+After testing different statistical and machine learning approaches to model the Income of DANHOS, our results show that the Multiple Linear Regression (MLR) model performs best for both interpretation and future prediction.¶
+Key Insights:
+Multiple Linear Regression is the most appropriate model for this analysis because it allows us to:
+- Quantify the individual impact of each macroeconomic variable on DANHOS’s income.
+- Preserve interpretability, which is essential in financial and econometric analysis.
+- Generate reliable forecasts for future quarters.
+The Random Forest model, while useful for nonlinear relationships, did not outperform the regression model because:
+- The dependent variable (Income) is continuous, not categorical.
+- The dataset’s size and frequency (quarterly data) favor a linear, econometric approach over ensemble machine learning methods.
+Model validation:
+- The final regression model successfully passed all diagnostic tests, confirming its robustness:
+- VIF test: No multicollinearity issues among independent variables.
+- Breusch–Pagan test (BP): Homoscedastic residuals, indicating constant variance.
+- Durbin–Watson test (DW): No evidence of autocorrelation.
+- Anderson–Darling test (AD): Residuals follow a normal distribution.
+Final Remark
+The validated multiple regression model provides strong statistical significance and serves as a reliable analytical tool for forecasting future income of DANHOS based on macroeconomic indicators. This makes it the most effective model for both interpretation and prediction in financial decision-making.
