@@ -1,5 +1,14 @@
 Final Project - Statistics and Data Analytics
 
+Santiago Correa Maciel
+Maria Delgado Subra
+Lucas Moreno Francos
+Alejandro Martin Mayordomo
+Ashvin Jose
+Zaid Benalilou
+M'hammed Tazi
+
+
 Project Overview
 This project analyzes and predicts the Income of DANHOS, one of the largest Real Estate Investment Trusts (FIBRAs) in Mexico. Using quarterly data from Q4 2013 to Q4 2024, we explore how macroeconomic and sectoral indicators influence the company’s performance over time.¶
 Our dataset integrates key economic variables such as inflation, exchange rate (USDMXN), sectoral GDPs, unemployment rate, bond yields (MBONO), and consumer confidence index (CCI) — all of which can significantly affect the real estate sector and, therefore, DANHOS’s revenues.
