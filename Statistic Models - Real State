@@ -1,0 +1,39 @@
+# Santiago-Correa
+Final Project - Statistics and Data Analytics
+
+Project Overview
+This project analyzes and predicts the Income of DANHOS, one of the largest Real Estate Investment Trusts (FIBRAs) in Mexico. Using quarterly data from Q4 2013 to Q4 2024, we explore how macroeconomic and sectoral indicators influence the company’s performance over time.¶
+Our dataset integrates key economic variables such as inflation, exchange rate (USDMXN), sectoral GDPs, unemployment rate, bond yields (MBONO), and consumer confidence index (CCI) — all of which can significantly affect the real estate sector and, therefore, DANHOS’s revenues.
+
+Methodology
+We employ several statistical and machine learning models to both explain and predict the company’s income dynamics:
+- Normal Distribution Analysis:
+Used to evaluate the distribution of residuals and ensure the assumptions of normality for our regression models.
+- T-Test:
+Applied to assess the statistical significance of independent variables and determine which macroeconomic factors have the strongest explanatory power over DANHOS’s income.
+- Multiple Linear Regression:
+Built to estimate how each economic indicator impacts the firm’s income, helping to identify key drivers and quantify their relationships.
+- Random Forest Model:
+Implemented as a nonlinear, ensemble-based approach to enhance predictive accuracy and capture complex interactions among variables that traditional regressions may miss.
+
+Dataset Description
+Frequency: Quarterly (every three months)
+Period: Q4 2013 – Q4 2024
+Company: DANHOS (FIBRA, Real Estate Sector)¶
+
+Column	Description
+Year	Date by quarter (e.g., Q4 2013)
+Income	Company’s total income or sales
+Inflation	Mexico’s inflation rate
+USDMXN	Exchange rate (USD to MXN)
+GDP_Ed	GDP of the Education Sector
+GDP_Man	GDP of the Manufacturing Sector
+GDP_Log	GDP of the Logistics Sector
+GDP_Res	GDP of the Restaurant Sector
+GDP_Cor	GDP of the Corporate Sector
+GDP_RT	GDP of the Retail Sector
+FibInd	Financial Index of Mexican FIBRAs
+UR	Unemployment Rate
+MBONO	Yield of the Mexican 10-year government bond
+Population	Total population of Mexico
+CCI	Consumer Confidence Index
