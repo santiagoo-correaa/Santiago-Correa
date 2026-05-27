@@ -15,11 +15,16 @@ source("R/utils.R")
 
 # ---- Returns matrix --------------------------------------------------------
 
-build_returns_matrix <- function(price_list, names_map, days = 120) {
+build_returns_matrix <- function(price_list, names_map = NULL, days = 120) {
   prices <- imap_dfr(price_list, function(df, key) {
     if (is.null(df) || nrow(df) < 30) return(NULL)
-    nm <- names_map[[key]]
-    if (is.null(nm) || is.na(nm) || nm == "") nm <- key
+    nm <- key
+    if (!is.null(names_map) && key %in% names(names_map)) {
+      candidate <- names_map[[key]]
+      if (!is.null(candidate) && !is.na(candidate) && candidate != "") {
+        nm <- candidate
+      }
+    }
     tibble(date = df$date, asset = nm, close = as.numeric(df$close))
   })
 
