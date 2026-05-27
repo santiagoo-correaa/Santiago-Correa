@@ -4,8 +4,8 @@ author: "Quant Research"
 date: "`r format(Sys.time(), '%A %d %B %Y — %H:%M %Z')`"
 output:
   html_document:
-    theme: null
-    highlight: null
+    theme: cosmo
+    highlight: tango
     self_contained: true
     toc: true
     toc_depth: 2
@@ -13,8 +13,6 @@ output:
       collapsed: false
       smooth_scroll: true
     css: css/dashboard.css
-    includes:
-      in_header: null
 params:
   config_path: "config/config.yml"
   send_email: false
