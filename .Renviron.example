@@ -1,0 +1,10 @@
+# Copy this file to .Renviron (same folder) and fill in your keys.
+# .Renviron is auto-loaded by R at startup. NEVER commit the real file.
+#
+# Edit easily with:  usethis::edit_r_environ(scope = "project")
+
+FRED_API_KEY=YOUR_FRED_KEY_HERE
+NEWSAPI_KEY=
+ALPHA_VANTAGE_KEY=
+FINNHUB_KEY=
+POLYGON_KEY=

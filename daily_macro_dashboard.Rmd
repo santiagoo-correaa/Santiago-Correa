@@ -1,0 +1,605 @@
+---
+title: "Daily Macro Screener — Cross-Asset Research Desk"
+author: "Quant Research"
+date: "`r format(Sys.time(), '%A %d %B %Y — %H:%M %Z')`"
+output:
+  html_document:
+    theme: null
+    highlight: null
+    self_contained: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    css: css/dashboard.css
+    includes:
+      in_header: null
+params:
+  config_path: "config/config.yml"
+  send_email: false
+---
+
+```{r setup, include=FALSE}
+# =============================================================================
+# Daily Macro Screener Dashboard
+# Author : Quant Research Desk
+# Purpose: Automated daily cross-asset dashboard for a fund operator's
+#          investment committee. Pulls data from Yahoo Finance + FRED + news,
+#          builds screener tables, runs tactical signals, generates narrative.
+# =============================================================================
+
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  warning    = FALSE,
+  message    = FALSE,
+  fig.align  = "center",
+  fig.width  = 9.5,
+  fig.height = 4.5,
+  cache      = FALSE,
+  dev        = "png"
+)
+
+# ---- 1. Bootstrap: load libs, source modules, read config -------------------
+
+required_pkgs <- c(
+  "tidyverse", "lubridate", "scales", "stringr", "zoo", "purrr",
+  "quantmod", "tidyquant", "fredr",
+  "httr", "jsonlite", "rvest", "xml2",
+  "plotly", "highcharter", "reactable", "gt", "kableExtra",
+  "tidytext", "syuzhet", "yaml", "digest", "patchwork", "htmltools"
+)
+invisible(lapply(required_pkgs, function(p) {
+  if (!requireNamespace(p, quietly = TRUE))
+    install.packages(p, repos = "https://cloud.r-project.org")
+  suppressPackageStartupMessages(library(p, character.only = TRUE))
+}))
+
+# Source modular code
+source("R/utils.R")
+source("R/data_fetchers.R")
+source("R/analytics.R")
+source("R/narratives.R")
+
+# Read config
+cfg <- yaml::read_yaml(params$config_path)
+
+# ---- 2. API keys ------------------------------------------------------------
+# In PRODUCTION: put keys in ~/.Renviron (created via usethis::edit_r_environ())
+#   FRED_API_KEY=676d7a3632b97e47aac86ad358d746db
+#   NEWSAPI_KEY=...
+# Then RESTART R. The line below is for first-time / sandbox runs only.
+if (nchar(Sys.getenv("FRED_API_KEY")) == 0) {
+  warning("FRED_API_KEY not set — copy .Renviron.example to .Renviron and reload.")
+  # Sys.setenv(FRED_API_KEY = "<your_fred_key_here>")  # one-shot only
+}
+log_msg("Dashboard run starting.")
+```
+
+```{r data-pull}
+# =============================================================================
+# 3. Data ingestion (cached, parallel-safe, error-tolerant)
+# =============================================================================
+hist_days <- cfg$dashboard$history_days
+from_date <- Sys.Date() - hist_days
+
+fx_prices   <- fetch_yahoo_prices(FX_TICKERS,        from = from_date,
+                                  cache_key = "fx",  ttl_min = cfg$dashboard$cache_ttl_min)
+com_prices  <- fetch_yahoo_prices(COMMODITY_TICKERS, from = from_date,
+                                  cache_key = "com", ttl_min = cfg$dashboard$cache_ttl_min)
+idx_prices  <- fetch_yahoo_prices(INDEX_TICKERS,     from = from_date,
+                                  cache_key = "idx", ttl_min = cfg$dashboard$cache_ttl_min)
+
+# Macro & rates via FRED
+fred_panel <- fetch_fred_panel(FRED_SERIES, ttl_min = cfg$dashboard$fred_ttl_min)
+
+# News + sentiment
+news_df <- fetch_news(n = 25, ttl_min = cfg$dashboard$news_ttl_min)
+sent    <- analyze_news_sentiment(news_df)
+
+# Economic calendar
+econ_cal <- fetch_econ_calendar(ttl_min = cfg$dashboard$econ_ttl_min)
+```
+
+```{r build-tables}
+# =============================================================================
+# 4. Build screener tables
+# =============================================================================
+fx_tbl  <- build_screener_table(fx_prices,  names(FX_TICKERS)  |> setNames(names(FX_TICKERS)))
+com_tbl <- build_screener_table(com_prices, names(COMMODITY_TICKERS) |> setNames(names(COMMODITY_TICKERS)))
+idx_tbl <- build_screener_table(idx_prices, names(INDEX_TICKERS) |> setNames(names(INDEX_TICKERS)))
+
+screener <- list(fx = fx_tbl, commodities = com_tbl, indices = idx_tbl)
+
+# Tactical analytics
+signals  <- generate_tactical_signals(screener, fred_panel)
+regime   <- classify_regime(
+  spx_df = idx_prices[["^GSPC"]],
+  vix_df = idx_prices[["^VIX"]],
+  dxy_df = fx_prices[["DX-Y.NYB"]],
+  hy_oas = fred_panel %>% filter(name == "hy_oas")
+)
+fg <- fear_greed_proxy(
+  vix_df = idx_prices[["^VIX"]],
+  spx_df = idx_prices[["^GSPC"]],
+  hy_oas = fred_panel %>% filter(name == "hy_oas"),
+  dxy_df = fx_prices[["DX-Y.NYB"]]
+)
+```
+
+```{r helpers-render}
+# =============================================================================
+# 5. Rendering helpers
+# =============================================================================
+fmt_pct_cell <- function(x) {
+  cls <- ifelse(is.na(x) | x == 0, "", ifelse(x > 0, "pos-cell", "neg-cell"))
+  sprintf('<span class="%s">%s</span>', cls, fmt_pct(x))
+}
+
+render_screener <- function(df, price_digits = 4) {
+  if (is.null(df) || nrow(df) == 0)
+    return(htmltools::HTML("<em>Datos no disponibles.</em>"))
+
+  spark_col <- reactable::colDef(
+    name = "60d Trend",
+    cell = function(values, index) {
+      pts <- df$spark[[index]]
+      if (is.null(pts) || length(pts) < 2) return("")
+      htmltools::tagList(
+        htmltools::tags$span(
+          style = "color: var(--muted); font-family: monospace; letter-spacing: -1px;",
+          paste(c("▁","▂","▃","▄","▅","▆","▇","█")[
+            pmax(1, pmin(8, ceiling((pts - min(pts, na.rm = TRUE)) /
+                                    (diff(range(pts, na.rm = TRUE)) + 1e-9) * 8)))
+          ], collapse = "")
+        )
+      )
+    },
+    html = TRUE, minWidth = 110
+  )
+
+  reactable::reactable(
+    df %>% select(asset, last, chg_d, chg_w, chg_m, chg_ytd, vol_20, drawdown, spark),
+    columns = list(
+      asset    = reactable::colDef(name = "Asset", minWidth = 110),
+      last     = reactable::colDef(name = "Last",
+                                   format = reactable::colFormat(separators = TRUE, digits = price_digits)),
+      chg_d    = reactable::colDef(name = "Δ 1D",  cell = function(v) htmltools::HTML(fmt_pct_cell(v)), html = TRUE),
+      chg_w    = reactable::colDef(name = "Δ 1W",  cell = function(v) htmltools::HTML(fmt_pct_cell(v)), html = TRUE),
+      chg_m    = reactable::colDef(name = "Δ 1M",  cell = function(v) htmltools::HTML(fmt_pct_cell(v)), html = TRUE),
+      chg_ytd  = reactable::colDef(name = "YTD",   cell = function(v) htmltools::HTML(fmt_pct_cell(v)), html = TRUE),
+      vol_20   = reactable::colDef(name = "Vol 20d (ann)",
+                                   format = reactable::colFormat(percent = TRUE, digits = 1)),
+      drawdown = reactable::colDef(name = "DD",
+                                   cell = function(v) htmltools::HTML(fmt_pct_cell(v)), html = TRUE),
+      spark    = spark_col
+    ),
+    striped = TRUE, highlight = TRUE, compact = TRUE,
+    defaultPageSize = 12, theme = reactable::reactableTheme(
+      backgroundColor = "#111a2e",
+      color           = "#e6ecf5",
+      borderColor     = "#28324a",
+      stripedColor    = "#18223a",
+      highlightColor  = "#1f2b47",
+      headerStyle     = list(background = "#18223a", color = "#f5a623")
+    )
+  )
+}
+```
+
+```{r header, results='asis'}
+# =============================================================================
+# 6. Executive header
+# =============================================================================
+mood_class <- switch(regime$regime,
+  "Risk-On"  = "mood-on",
+  "Risk-Off" = "mood-off",
+  "mood-neu"
+)
+cat(sprintf('
+<div class="exec-header">
+  <div>
+    <div class="title">%s</div>
+    <div class="subtitle">%s · Última actualización: %s</div>
+  </div>
+  <div class="mood-pill %s">Market Mood: %s</div>
+</div>
+', cfg$dashboard$title, cfg$dashboard$subtitle,
+   format(Sys.time(), "%Y-%m-%d %H:%M %Z"),
+   mood_class, regime$regime))
+```
+
+# 1. Resumen Ejecutivo
+
+```{r exec-summary, results='asis'}
+cat('<div class="highlight-box"><h3>Highlights del día</h3>\n\n')
+cat(build_executive_summary(regime, signals, fg, fx_tbl, idx_tbl, sent))
+cat('\n\n</div>')
+```
+
+<div class="grid">
+```{r exec-cards, results='asis'}
+make_card <- function(label, value, delta = NULL) {
+  delta_html <- ""
+  if (!is.null(delta) && !is.na(delta)) {
+    cls <- ifelse(delta > 0, "pos", "neg")
+    delta_html <- sprintf('<div class="delta %s">%s</div>', cls, fmt_pct(delta))
+  }
+  sprintf('<div class="card"><div class="label">%s</div><div class="value">%s</div>%s</div>',
+          label, value, delta_html)
+}
+spx <- idx_tbl %>% filter(asset == "S&P 500")
+dxy <- fx_tbl  %>% filter(asset == "DXY")
+oil <- com_tbl %>% filter(asset == "WTI")
+vix <- idx_tbl %>% filter(asset == "VIX")
+ust10_last <- fred_panel %>% filter(name == "ust_10y") %>% arrange(date) %>% tail(1) %>% pull(value)
+
+cards <- c(
+  make_card("S&P 500", fmt_num(spx$last, 2), spx$chg_d),
+  make_card("DXY",     fmt_num(dxy$last, 3), dxy$chg_d),
+  make_card("UST 10Y", sprintf("%.2f%%", ust10_last %||% NA), NULL),
+  make_card("WTI",     paste0("$", fmt_num(oil$last, 2)), oil$chg_d),
+  make_card("VIX",     fmt_num(vix$last, 2), vix$chg_d),
+  make_card("Fear & Greed", paste0(fg$score, " — ", fg$label), NULL)
+)
+cat(paste(cards, collapse = "\n"))
+```
+</div>
+
+# 2. Mercado Cambiario
+
+<div class="narrative">`r narrate_fx(fx_tbl)`</div>
+
+```{r fx-table}
+render_screener(fx_tbl, price_digits = 4)
+```
+
+```{r fx-chart}
+# DXY + USDMXN dual-axis chart
+dxy_df <- fx_prices[["DX-Y.NYB"]]
+mxn_df <- fx_prices[["MXN=X"]]
+if (!is.null(dxy_df) && !is.null(mxn_df)) {
+  highchart(type = "stock") %>%
+    hc_add_series(xts::xts(dxy_df$close, order.by = dxy_df$date),
+                  name = "DXY", color = "#f5a623", yAxis = 0) %>%
+    hc_add_series(xts::xts(mxn_df$close, order.by = mxn_df$date),
+                  name = "USD/MXN", color = "#4fc3f7", yAxis = 1) %>%
+    hc_yAxis_multiples(
+      create_yaxis(2, height = c(2,1), turnopposite = TRUE)
+    ) %>%
+    hc_title(text = "DXY vs. USD/MXN — 12M") %>%
+    hc_chart(backgroundColor = "#111a2e") %>%
+    hc_legend(itemStyle = list(color = "#e6ecf5"))
+}
+```
+
+# 3. Tasas y Renta Fija
+
+<div class="narrative">`r narrate_rates(fred_panel)`</div>
+
+```{r rates-table}
+rates_snap <- fred_panel %>%
+  filter(name %in% c("ust_2y", "ust_10y", "ust_30y", "fed_funds", "sofr")) %>%
+  group_by(name) %>%
+  arrange(date) %>%
+  summarise(
+    label = case_when(
+      name == "ust_2y"    ~ "UST 2Y",
+      name == "ust_10y"   ~ "UST 10Y",
+      name == "ust_30y"   ~ "UST 30Y",
+      name == "fed_funds" ~ "Fed Funds",
+      name == "sofr"      ~ "SOFR"
+    )[1],
+    last_val = tail(value, 1),
+    d_1d     = (tail(value, 1) - tail(value, 2)[1]) * 100,
+    d_1w     = (tail(value, 1) - tail(value, 6)[1]) * 100,
+    d_1m     = (tail(value, 1) - tail(value, 22)[1]) * 100,
+    .groups = "drop"
+  ) %>%
+  select(Tenor = label, `Last (%)` = last_val,
+         `Δ 1D (pb)` = d_1d, `Δ 1W (pb)` = d_1w, `Δ 1M (pb)` = d_1m)
+
+reactable::reactable(
+  rates_snap,
+  columns = list(
+    `Last (%)`    = reactable::colDef(format = reactable::colFormat(digits = 3)),
+    `Δ 1D (pb)`   = reactable::colDef(format = reactable::colFormat(digits = 1)),
+    `Δ 1W (pb)`   = reactable::colDef(format = reactable::colFormat(digits = 1)),
+    `Δ 1M (pb)`   = reactable::colDef(format = reactable::colFormat(digits = 1))
+  ),
+  striped = TRUE, compact = TRUE,
+  theme = reactable::reactableTheme(
+    backgroundColor = "#111a2e", color = "#e6ecf5",
+    borderColor = "#28324a", stripedColor = "#18223a",
+    headerStyle = list(background = "#18223a", color = "#f5a623")
+  )
+)
+```
+
+```{r curve-chart}
+# 2s10s slope over time
+slope <- fred_panel %>%
+  filter(name %in% c("ust_2y", "ust_10y")) %>%
+  pivot_wider(id_cols = date, names_from = name, values_from = value) %>%
+  drop_na() %>%
+  mutate(slope_bps = (ust_10y - ust_2y) * 100)
+
+if (nrow(slope) > 30) {
+  plotly::plot_ly(slope, x = ~date, y = ~slope_bps, type = "scatter", mode = "lines",
+                  line = list(color = "#f5a623", width = 2)) %>%
+    plotly::layout(
+      title = list(text = "Pendiente 2s10s (pb)", font = list(color = "#e6ecf5")),
+      paper_bgcolor = "#111a2e", plot_bgcolor = "#111a2e",
+      font = list(color = "#e6ecf5"),
+      xaxis = list(gridcolor = "#28324a"),
+      yaxis = list(gridcolor = "#28324a", zerolinecolor = "#ef4444")
+    )
+}
+```
+
+# 4. Commodities
+
+<div class="narrative">`r narrate_commodities(com_tbl)`</div>
+
+```{r com-table}
+render_screener(com_tbl, price_digits = 2)
+```
+
+# 5. Índices Globales
+
+<div class="narrative">`r narrate_equities(idx_tbl)`</div>
+
+```{r idx-table}
+render_screener(idx_tbl, price_digits = 2)
+```
+
+```{r idx-heatmap}
+# Performance heatmap (chg 1D and 1W)
+heat <- bind_rows(
+  fx_tbl  %>% mutate(class = "FX"),
+  com_tbl %>% mutate(class = "Commodities"),
+  idx_tbl %>% mutate(class = "Equities")
+) %>%
+  select(class, asset, `1D` = chg_d, `1W` = chg_w, `1M` = chg_m) %>%
+  pivot_longer(c(`1D`, `1W`, `1M`), names_to = "horizon", values_to = "ret") %>%
+  mutate(horizon = factor(horizon, levels = c("1D","1W","1M")))
+
+if (nrow(heat) > 0) {
+  ggplot(heat, aes(x = horizon, y = reorder(asset, ret), fill = ret)) +
+    geom_tile(color = "#28324a") +
+    geom_text(aes(label = fmt_pct(ret, 1)), size = 3, color = "white") +
+    scale_fill_gradient2(low = "#ef4444", mid = "#1f2b47", high = "#22c55e",
+                         midpoint = 0, labels = scales::percent) +
+    facet_wrap(~ class, scales = "free_y", ncol = 3) +
+    theme_minimal(base_size = 11) +
+    theme(
+      plot.background  = element_rect(fill = "#0b1220", color = NA),
+      panel.background = element_rect(fill = "#111a2e", color = NA),
+      strip.background = element_rect(fill = "#18223a", color = NA),
+      strip.text       = element_text(color = "#f5a623", face = "bold"),
+      text             = element_text(color = "#e6ecf5"),
+      axis.text        = element_text(color = "#e6ecf5"),
+      panel.grid       = element_blank(),
+      legend.position  = "none"
+    ) +
+    labs(x = NULL, y = NULL, title = "Cross-Asset Heatmap — Returns")
+}
+```
+
+# 6. Correlation Matrix & PCA Macro
+
+```{r corr-matrix, fig.height=5.5}
+all_prices <- c(fx_prices, com_prices, idx_prices)
+names_map <- c(setNames(names(FX_TICKERS), FX_TICKERS),
+               setNames(names(COMMODITY_TICKERS), COMMODITY_TICKERS),
+               setNames(names(INDEX_TICKERS), INDEX_TICKERS))
+ret_mat <- build_returns_matrix(all_prices, names_map, days = 90)
+
+if (ncol(ret_mat) > 3) {
+  cm <- correlation_matrix(ret_mat)
+  long <- as_tibble(cm, rownames = "x") %>%
+    pivot_longer(-x, names_to = "y", values_to = "rho")
+  ggplot(long, aes(x = x, y = y, fill = rho)) +
+    geom_tile() +
+    geom_text(aes(label = sprintf("%.2f", rho)), size = 2.6, color = "white") +
+    scale_fill_gradient2(low = "#ef4444", mid = "#1f2b47", high = "#22c55e",
+                         midpoint = 0, limits = c(-1,1)) +
+    theme_minimal(base_size = 9) +
+    theme(
+      plot.background  = element_rect(fill = "#0b1220", color = NA),
+      panel.background = element_rect(fill = "#111a2e", color = NA),
+      text             = element_text(color = "#e6ecf5"),
+      axis.text.x      = element_text(angle = 45, hjust = 1, color = "#e6ecf5"),
+      axis.text.y      = element_text(color = "#e6ecf5"),
+      panel.grid       = element_blank(),
+      legend.position  = "right",
+      legend.text      = element_text(color = "#e6ecf5"),
+      legend.title     = element_text(color = "#e6ecf5")
+    ) +
+    labs(x = NULL, y = NULL, title = "Correlation Matrix — 90d daily returns", fill = "ρ")
+}
+```
+
+```{r pca, results='asis'}
+pca_out <- pca_macro(ret_mat)
+if (!is.null(pca_out)) {
+  cat('<div class="narrative">\n')
+  cat(sprintf("**PCA cross-asset:** los 3 primeros componentes explican **%s** de la varianza ",
+              fmt_pct(sum(pca_out$var_explained))))
+  cat("(PC1 suele capturar el factor *risk-on/risk-off*, PC2 el factor *USD*, ",
+      "PC3 el factor *duración / rates*).")
+  cat('\n</div>\n')
+}
+```
+
+# 7. Indicadores Macro (FRED)
+
+```{r macro-table}
+macro_snap <- fred_panel %>%
+  filter(name %in% c("cpi_yoy", "core_pce_yoy", "unemployment",
+                     "nfci", "consumer_conf", "hy_oas", "ig_oas")) %>%
+  group_by(name) %>%
+  arrange(date) %>%
+  summarise(
+    Indicator = c(
+      cpi_yoy       = "CPI (Index)",
+      core_pce_yoy  = "Core PCE (Index)",
+      unemployment  = "Unemployment (%)",
+      nfci          = "NFCI (Chi Fed)",
+      consumer_conf = "Consumer Confidence",
+      hy_oas        = "HY OAS (%)",
+      ig_oas        = "IG OAS (%)"
+    )[name][1],
+    `Last`        = tail(value, 1),
+    `Δ 1M`        = tail(value, 1) - tail(value, 2)[1],
+    `Δ 12M`       = tail(value, 1) - tail(value, 13)[1],
+    `Z-score 3Y`  = zscore(value, 36),
+    .groups = "drop"
+  ) %>%
+  select(-name)
+
+reactable::reactable(
+  macro_snap,
+  columns = list(
+    `Last`       = reactable::colDef(format = reactable::colFormat(digits = 2)),
+    `Δ 1M`       = reactable::colDef(format = reactable::colFormat(digits = 2)),
+    `Δ 12M`      = reactable::colDef(format = reactable::colFormat(digits = 2)),
+    `Z-score 3Y` = reactable::colDef(format = reactable::colFormat(digits = 2))
+  ),
+  striped = TRUE, compact = TRUE,
+  theme = reactable::reactableTheme(
+    backgroundColor = "#111a2e", color = "#e6ecf5",
+    borderColor = "#28324a", stripedColor = "#18223a",
+    headerStyle = list(background = "#18223a", color = "#f5a623")
+  )
+)
+```
+
+# 8. Calendario Económico (próximos días)
+
+```{r econ-cal}
+if (is.null(econ_cal) || nrow(econ_cal) == 0) {
+  cat("<em>Calendario económico no disponible (fuente externa).</em>")
+} else {
+  reactable::reactable(
+    econ_cal,
+    striped = TRUE, compact = TRUE, searchable = TRUE, defaultPageSize = 12,
+    theme = reactable::reactableTheme(
+      backgroundColor = "#111a2e", color = "#e6ecf5",
+      borderColor = "#28324a", stripedColor = "#18223a",
+      headerStyle = list(background = "#18223a", color = "#f5a623")
+    )
+  )
+}
+```
+
+# 9. Noticias y Sentiment
+
+<div class="narrative">`r sent$summary`</div>
+
+```{r news-render, results='asis'}
+if (nrow(sent$scored) > 0) {
+  scored <- sent$scored %>% arrange(desc(abs(sentiment))) %>% head(10)
+  for (i in seq_len(nrow(scored))) {
+    chip_class <- switch(scored$label[i],
+      "Bullish" = "chip bull",
+      "Bearish" = "chip bear",
+      "chip"
+    )
+    cat(sprintf('<div class="news-item">
+      <span class="%s">%s</span>
+      <span class="src"> · %s · %s</span><br/>
+      <a class="title" href="%s" target="_blank">%s</a>
+    </div>\n',
+      chip_class, scored$label[i],
+      scored$source[i] %||% "Source",
+      ifelse(is.na(scored$published[i]), "",
+             format(scored$published[i], "%Y-%m-%d %H:%M")),
+      scored$url[i] %||% "#", scored$title[i]))
+  }
+}
+```
+
+```{r news-words, fig.height=3.5}
+if (nrow(sent$top_words) > 0) {
+  ggplot(sent$top_words, aes(x = reorder(word, n), y = n)) +
+    geom_col(fill = "#f5a623") +
+    coord_flip() +
+    theme_minimal(base_size = 11) +
+    theme(
+      plot.background  = element_rect(fill = "#0b1220", color = NA),
+      panel.background = element_rect(fill = "#111a2e", color = NA),
+      text             = element_text(color = "#e6ecf5"),
+      axis.text        = element_text(color = "#e6ecf5"),
+      panel.grid       = element_line(color = "#28324a")
+    ) +
+    labs(x = NULL, y = NULL, title = "Términos más frecuentes — feed de noticias")
+}
+```
+
+# 10. Señales Tácticas
+
+```{r signals-render, results='asis'}
+cat('<div class="grid">\n')
+for (s in unlist(signals)) {
+  cls <- ifelse(grepl("Bullish|Strength|Attractive|On|Compression", s), "chip bull",
+         ifelse(grepl("Bearish|Weakness|Off|Expansion|Inverted|Weakening", s), "chip bear",
+                "chip"))
+  cat(sprintf('<div class="card"><span class="%s">%s</span></div>\n', cls, s))
+}
+cat('</div>\n')
+```
+
+```{r fg-gauge, fig.height=3}
+plotly::plot_ly(
+  type = "indicator", mode = "gauge+number",
+  value = fg$score,
+  title = list(text = paste0("Fear & Greed Proxy — ", fg$label),
+               font = list(color = "#f5a623", size = 16)),
+  gauge = list(
+    axis = list(range = list(0, 100), tickcolor = "#e6ecf5"),
+    bar = list(color = "#4fc3f7"),
+    steps = list(
+      list(range = c(0,20),  color = "#ef4444"),
+      list(range = c(20,40), color = "#f97316"),
+      list(range = c(40,60), color = "#94a3b8"),
+      list(range = c(60,80), color = "#22c55e"),
+      list(range = c(80,100), color = "#16a34a")
+    )
+  )
+) %>% plotly::layout(
+  paper_bgcolor = "#0b1220",
+  font = list(color = "#e6ecf5")
+)
+```
+
+# 11. Postura de Mercado — Cierre del Comité
+
+```{r posture, results='asis'}
+post <- build_market_posture(regime, signals, fred_panel, fg)
+cat('<div class="highlight-box"><h3>Narrativa dominante</h3>\n\n')
+cat(post$narrative)
+cat('\n\n<h3 style="margin-top:18px;">Riesgos a monitorear</h3>\n<ul>')
+for (r in post$risks) cat(sprintf("<li>%s</li>", r))
+cat('</ul></div>')
+```
+
+```{r simple-var, results='asis'}
+spx_rets <- diff(log(idx_prices[["^GSPC"]]$close))
+v95 <- simple_var(tail(spx_rets, 252), 0.05)
+v99 <- simple_var(tail(spx_rets, 252), 0.01)
+cat(sprintf('<div class="narrative"><b>VaR paramétrico simple (S&P 500, 1d, 1Y):</b> 95%% = %s, 99%% = %s.</div>',
+            fmt_pct(v95), fmt_pct(v99)))
+```
+
+<div class="footer">
+  Generado automáticamente por <b>Daily Macro Screener</b> · `r format(Sys.time(), '%Y-%m-%d %H:%M %Z')`<br/>
+  Fuentes: Yahoo Finance, FRED, Reuters / NewsAPI, Investing.com Economic Calendar.<br/>
+  Documento de uso interno. No constituye recomendación de inversión.
+</div>
+
+```{r save-output, include=FALSE}
+# Save the rendered HTML to output/reports/ with a date stamp.
+# (rmarkdown::render() itself writes the output, but we also persist a stamped copy.)
+log_msg("Dashboard rendered successfully.")
+```

@@ -1,0 +1,185 @@
+/* =============================================================================
+   dashboard.css — Institutional macro screener style
+   Inspired by Bloomberg Terminal / JPMorgan Markets / BlackRock research.
+   ============================================================================= */
+
+:root {
+  --bg-0: #0b1220;
+  --bg-1: #111a2e;
+  --bg-2: #18223a;
+  --bg-3: #1f2b47;
+  --line: #28324a;
+  --text: #e6ecf5;
+  --muted: #8a97b0;
+  --accent: #f5a623;    /* Bloomberg amber */
+  --accent-2: #4fc3f7;  /* cyan */
+  --pos: #22c55e;
+  --neg: #ef4444;
+  --neutral: #94a3b8;
+}
+
+/* Global ------------------------------------------------------------------- */
+body {
+  background: var(--bg-0) !important;
+  color: var(--text);
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 24px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-top: 28px; }
+h2 { font-size: 18px; color: var(--accent); margin-top: 28px; text-transform: uppercase; letter-spacing: 0.08em; }
+h3 { font-size: 15px; color: var(--accent-2); margin-top: 18px; }
+
+a { color: var(--accent-2); text-decoration: none; }
+a:hover { color: var(--accent); }
+
+hr { border: none; border-top: 1px solid var(--line); margin: 20px 0; }
+
+/* Header card -------------------------------------------------------------- */
+.exec-header {
+  background: linear-gradient(135deg, var(--bg-2) 0%, var(--bg-1) 100%);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  padding: 18px 22px;
+  margin: 12px 0 22px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.exec-header .title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.exec-header .subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.exec-header .mood-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.mood-on  { background: rgba(34,197,94,.15); color: var(--pos); border: 1px solid var(--pos); }
+.mood-off { background: rgba(239,68,68,.15); color: var(--neg); border: 1px solid var(--neg); }
+.mood-neu { background: rgba(148,163,184,.15); color: var(--neutral); border: 1px solid var(--neutral); }
+
+/* Grid cards --------------------------------------------------------------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.card {
+  background: var(--bg-1);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.card .value { font-size: 22px; font-weight: 600; margin-top: 4px; }
+.card .delta { font-size: 12px; margin-top: 2px; }
+.delta.pos { color: var(--pos); }
+.delta.neg { color: var(--neg); }
+
+/* Tables ------------------------------------------------------------------- */
+table.dataTable, .reactable, table {
+  background: var(--bg-1) !important;
+  color: var(--text) !important;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table th {
+  background: var(--bg-2) !important;
+  color: var(--accent) !important;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--line) !important;
+  text-align: right;
+  padding: 8px 10px;
+}
+table td {
+  border-bottom: 1px solid var(--line) !important;
+  padding: 6px 10px;
+  text-align: right;
+}
+table td:first-child, table th:first-child { text-align: left; font-weight: 600; }
+table tr:hover td { background: var(--bg-3) !important; }
+
+.pos-cell { color: var(--pos); font-weight: 600; }
+.neg-cell { color: var(--neg); font-weight: 600; }
+
+/* Narrative callouts ------------------------------------------------------- */
+.narrative {
+  background: var(--bg-1);
+  border-left: 3px solid var(--accent-2);
+  padding: 12px 16px;
+  margin: 10px 0;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.highlight-box {
+  background: linear-gradient(135deg, var(--bg-2), var(--bg-1));
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin: 16px 0;
+}
+.highlight-box h3 { margin-top: 0; color: var(--accent); }
+
+/* Signals chips ------------------------------------------------------------ */
+.chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 3px 4px 3px 0;
+  background: var(--bg-3);
+  color: var(--text);
+  border: 1px solid var(--line);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.chip.bull { color: var(--pos); border-color: var(--pos); }
+.chip.bear { color: var(--neg); border-color: var(--neg); }
+
+/* News list ---------------------------------------------------------------- */
+.news-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.news-item .src { color: var(--muted); font-size: 11px; }
+.news-item .title { font-weight: 500; color: var(--text); }
+
+/* Footer ------------------------------------------------------------------- */
+.footer {
+  margin-top: 40px;
+  padding: 16px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  border-top: 1px solid var(--line);
+}
+
+/* htmlwidgets containers - make them blend in ----------------------------- */
+.html-widget, .plotly, .highchart { background: var(--bg-1) !important; }

@@ -1,0 +1,45 @@
+# =============================================================================
+# config/config.yml — parameters consumed by daily_macro_dashboard.Rmd
+# Edit here, NOT in the Rmd. Hot-reloaded each run.
+# =============================================================================
+
+dashboard:
+  title: "Daily Macro Screener"
+  subtitle: "Cross-Asset Research Desk — Operadora de Fondos"
+  author: "Quant Research"
+  history_days: 400          # lookback for price downloads
+  cache_ttl_min: 60          # cache TTL for Yahoo Finance
+  news_ttl_min: 30
+  econ_ttl_min: 360
+  fred_ttl_min: 720
+
+apis:
+  fred_key_env: "FRED_API_KEY"
+  newsapi_key_env: "NEWSAPI_KEY"     # optional
+  alpha_vantage_env: "ALPHA_VANTAGE_KEY"  # optional
+
+universe:
+  fx:
+    - "USD/MXN"
+    - "EUR/USD"
+    - "DXY"
+    - "USD/JPY"
+    - "GBP/USD"
+    - "USD/CNY"
+  commodities:
+    - "Gold"
+    - "Silver"
+    - "Copper"
+    - "WTI"
+    - "Brent"
+    - "Nat Gas"
+  indices:
+    - "S&P 500"
+    - "Nasdaq 100"
+    - "Dow Jones"
+    - "Russell 2000"
+    - "VIX"
+    - "IPC Mexico"
+    - "Euro Stoxx 50"
+    - "Nikkei"
+    - "Shanghai Comp"
