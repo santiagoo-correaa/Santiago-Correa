@@ -583,11 +583,22 @@ cat('</ul></div>')
 ```
 
 ```{r simple-var, results='asis'}
-spx_rets <- diff(log(idx_prices[["^GSPC"]]$close))
-v95 <- simple_var(tail(spx_rets, 252), 0.05)
-v99 <- simple_var(tail(spx_rets, 252), 0.01)
-cat(sprintf('<div class="narrative"><b>VaR paramétrico simple (S&P 500, 1d, 1Y):</b> 95%% = %s, 99%% = %s.</div>',
-            fmt_pct(v95), fmt_pct(v99)))
+spx_df <- idx_prices[["^GSPC"]]
+if (!is.null(spx_df) && nrow(spx_df) > 30) {
+  px <- as.numeric(spx_df$close)
+  px <- px[!is.na(px) & px > 0]
+  if (length(px) > 30) {
+    spx_rets <- diff(log(px))
+    v95 <- simple_var(tail(spx_rets, 252), 0.05)
+    v99 <- simple_var(tail(spx_rets, 252), 0.01)
+    cat(sprintf('<div class="narrative"><b>VaR paramétrico simple (S&P 500, 1d, 1Y):</b> 95%% = %s, 99%% = %s.</div>',
+                fmt_pct(v95), fmt_pct(v99)))
+  } else {
+    cat('<div class="narrative">VaR no disponible: datos insuficientes de S&P 500.</div>')
+  }
+} else {
+  cat('<div class="narrative">VaR no disponible: S&P 500 no se descargó correctamente.</div>')
+}
 ```
 
 <div class="footer">
