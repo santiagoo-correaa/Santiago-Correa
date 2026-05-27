@@ -45,7 +45,7 @@ required_pkgs <- c(
   "quantmod", "tidyquant", "fredr",
   "httr", "jsonlite", "rvest", "xml2",
   "plotly", "highcharter", "reactable", "gt", "kableExtra",
-  "tidytext", "syuzhet", "yaml", "digest", "patchwork", "htmltools"
+  "tidytext", "syuzhet", "yaml", "digest", "htmltools"
 )
 invisible(lapply(required_pkgs, function(p) {
   if (!requireNamespace(p, quietly = TRUE))
