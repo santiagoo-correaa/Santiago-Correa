@@ -18,13 +18,30 @@ source("R/utils.R")
 build_returns_matrix <- function(price_list, names_map, days = 120) {
   prices <- imap_dfr(price_list, function(df, key) {
     if (is.null(df) || nrow(df) < 30) return(NULL)
-    df %>% transmute(date, asset = names_map[key] %||% key, close)
+    nm <- names_map[[key]]
+    if (is.null(nm) || is.na(nm) || nm == "") nm <- key
+    tibble(date = df$date, asset = nm, close = as.numeric(df$close))
   })
-  prices %>%
-    pivot_wider(names_from = asset, values_from = close) %>%
+
+  if (nrow(prices) == 0) return(tibble(date = as.Date(character())))
+
+  wide <- prices %>%
+    filter(!is.na(asset), !is.na(close)) %>%
+    pivot_wider(names_from = asset, values_from = close,
+                values_fn = list(close = mean)) %>%
     arrange(date) %>%
-    tail(days) %>%
-    mutate(across(-date, ~ c(NA, diff(log(.x))))) %>%
+    tail(days)
+
+  # Keep only numeric (price) columns, drop empty ones
+  num_cols <- names(wide)[vapply(wide, is.numeric, logical(1))]
+  num_cols <- setdiff(num_cols, "date")
+  num_cols <- num_cols[vapply(num_cols,
+                              function(c) sum(!is.na(wide[[c]])) >= 10,
+                              logical(1))]
+  wide <- wide[, c("date", num_cols), drop = FALSE]
+
+  wide %>%
+    mutate(across(all_of(num_cols), ~ c(NA, diff(log(.x))))) %>%
     drop_na()
 }
 
