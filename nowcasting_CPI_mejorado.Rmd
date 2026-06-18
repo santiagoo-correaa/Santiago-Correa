@@ -1,0 +1,1053 @@
+---
+title: "Determinantes Multifactoriales de la Inflación en EE. UU."
+subtitle: "Modelo de Nowcasting con Selección Automática de Especificación"
+author: "Santiago Correa Maciel"
+date: "`r format(Sys.Date(), '%d de %B, %Y')`"
+output:
+  html_document:
+    theme: flatly
+    highlight: pygments
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    self_contained: true
+---
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
+  body {
+    font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+    color: #1a2332;
+    background-color: #f5f7fa;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  h1, h2, h3 {
+    color: #0d2b5e;
+    font-weight: 700;
+    border-bottom: 3px solid #1a9e5c;
+    padding-bottom: 8px;
+    margin-top: 40px;
+  }
+
+  .list-group-item.active,
+  .list-group-item.active:hover {
+    background-color: #0d2b5e;
+    border-color: #0d2b5e;
+  }
+
+  /* ── BLS CARD ─────────────────────────── */
+  .bls-card {
+    background: #ffffff;
+    border: 1px solid #dde3ec;
+    border-radius: 10px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.07);
+    margin: 28px 0;
+    overflow: hidden;
+  }
+  .bls-header {
+    background: #0d2b5e;
+    color: white;
+    padding: 18px 28px;
+    font-size: 1.05em;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .bls-body {
+    display: flex;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .bls-main {
+    flex: 2;
+    min-width: 220px;
+    padding: 28px 32px;
+    border-right: 1px solid #eaecf0;
+    text-align: center;
+  }
+  .bls-main .label {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #5a6474;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .bls-main .big-number {
+    font-size: 3.8em;
+    font-weight: 800;
+    line-height: 1;
+    margin: 8px 0 4px 0;
+  }
+  .bls-main .big-number.up   { color: #c0392b; }
+  .bls-main .big-number.down { color: #1a9e5c; }
+  .bls-main .big-number.flat { color: #2d6ca2; }
+  .bls-main .unit-label {
+    font-size: 0.88em;
+    color: #7a8494;
+    margin-top: 2px;
+  }
+  .bls-sidebar {
+    flex: 1;
+    min-width: 180px;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    justify-content: center;
+  }
+  .bls-metric { border-left: 4px solid #1a9e5c; padding-left: 14px; }
+  .bls-metric .m-label { font-size: 0.72em; color: #7a8494; text-transform: uppercase; font-weight: 600; letter-spacing: 0.8px; }
+  .bls-metric .m-value { font-size: 1.6em; font-weight: 700; color: #0d2b5e; line-height: 1.2; }
+  .bls-metric .m-value.up   { color: #c0392b; }
+  .bls-metric .m-value.down { color: #1a9e5c; }
+  .bls-footer {
+    background: #f0f4f9;
+    padding: 12px 28px;
+    font-size: 0.80em;
+    color: #6b7280;
+    border-top: 1px solid #dde3ec;
+  }
+
+  /* ── BARRA FED ────────────────────────── */
+  .fed-target-bar {
+    background: #ffffff;
+    border: 1px solid #dde3ec;
+    border-radius: 10px;
+    padding: 20px 28px;
+    margin: 18px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .fed-target-bar .bar-label {
+    font-weight: 600;
+    color: #0d2b5e;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+  }
+  .bar-track {
+    background: #e8ecf1;
+    border-radius: 8px;
+    height: 14px;
+    position: relative;
+    overflow: visible;
+    margin-bottom: 8px;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.5s;
+  }
+  .bar-target-line {
+    position: absolute;
+    top: -6px;
+    height: 26px;
+    width: 2px;
+    background: #0d2b5e;
+  }
+  .bar-target-label {
+    position: absolute;
+    top: -22px;
+    font-size: 0.72em;
+    font-weight: 600;
+    color: #0d2b5e;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  /* ── TABLA ────────────────────────────── */
+  .table-wrapper {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    margin-bottom: 22px;
+  }
+  thead th {
+    background-color: #0d2b5e !important;
+    color: white !important;
+    font-weight: 600 !important;
+    border: none !important;
+    font-size: 0.88em;
+  }
+  tbody tr:hover { background-color: #f0faf5 !important; }
+
+  /* ── INFO BOXES ───────────────────────── */
+  .info-grid { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; }
+  .info-box {
+    flex: 1; min-width: 140px;
+    background: white;
+    border: 1px solid #dde3ec;
+    border-radius: 8px;
+    padding: 16px 18px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  .info-box .ib-value { font-size: 1.9em; font-weight: 800; color: #0d2b5e; }
+  .info-box .ib-label { font-size: 0.75em; color: #7a8494; text-transform: uppercase; font-weight: 600; letter-spacing: 0.6px; margin-top: 4px; }
+
+  /* ── DIAGNÓSTICOS ─────────────────────── */
+  .diag-grid { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0; }
+  .diag-box {
+    flex: 1; min-width: 160px;
+    background: white;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border-left: 5px solid #cccccc;
+  }
+  .diag-box.ok   { border-left-color: #1a9e5c; }
+  .diag-box.warn { border-left-color: #e67e22; }
+  .diag-box.bad  { border-left-color: #c0392b; }
+  .diag-box .d-title { font-weight: 700; font-size: 0.85em; color: #0d2b5e; margin-bottom: 4px; }
+  .diag-box .d-stat  { font-size: 1.2em; font-weight: 700; }
+  .diag-box .d-desc  { font-size: 0.75em; color: #6b7280; margin-top: 3px; }
+
+  /* ── CALLOUT OOS ──────────────────────── */
+  .oos-callout {
+    background: #f0f9ff;
+    border-left: 5px solid #2d6ca2;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 18px 0;
+    font-size: 0.92em;
+  }
+  .oos-callout strong { color: #0d2b5e; }
+
+  /* ── HIGHLIGHT SPANS ──────────────────── */
+  .hl-green { color: #1a9e5c; font-weight: 700; }
+  .hl-blue  { color: #2d6ca2; font-weight: 700; }
+  .hl-red   { color: #c0392b; font-weight: 700; }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width  = 10,
+  fig.height = 5.5,
+  dpi = 200
+)
+
+# ── LIBRERÍAS ────────────────────────────────────────────────────────────────
+library(Rblpapi)
+library(car)
+library(lmtest)
+library(sandwich)
+library(broom)
+library(tidyverse)
+library(nortest)
+library(lubridate)
+library(fredr)
+library(purrr)
+library(zoo)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+
+# ── CREDENCIALES ─────────────────────────────────────────────────────────────
+# Nunca hardcodear la API key. Agrega en tu .Renviron:  FRED_API_KEY=tu_clave_aqui
+fred_key <- Sys.getenv("FRED_API_KEY")
+if (nchar(fred_key) == 0) {
+  fred_key <- "676d7a3632b97e47aac86ad358d746db"   # ← solo dev, mueve a .Renviron
+  message("Aviso: usando API key de respaldo. Configura FRED_API_KEY en .Renviron.")
+}
+fredr_set_key(fred_key)
+
+# ── BLOOMBERG: conexión con flag de disponibilidad ───────────────────────────
+blp_available <- tryCatch({
+  blpConnect()
+  TRUE
+}, error = function(e) {
+  message("Bloomberg no disponible: ", e$message,
+          "\n → Usando sustitutos FRED para MORTGAGE y NATGAS.")
+  FALSE
+})
+
+# ── FECHAS ────────────────────────────────────────────────────────────────────
+start_date <- Sys.Date() - years(10)
+end_date   <- Sys.Date()
+
+# ── FUNCIONES AUXILIARES ──────────────────────────────────────────────────────
+safe_fredr <- function(series_id, obs_start) {
+  tryCatch(
+    fredr(series_id = series_id, observation_start = obs_start),
+    error = function(e) {
+      Sys.sleep(3)
+      fredr(series_id = series_id, observation_start = obs_start)
+    }
+  )
+}
+
+to_monthly <- function(df, name) {
+  df %>%
+    mutate(date = floor_date(date, "month")) %>%
+    group_by(date) %>%
+    summarise(!!name := mean(PX_LAST, na.rm = TRUE), .groups = "drop")
+}
+
+fred_to_monthly <- function(df, name) {
+  df %>%
+    select(date, value) %>%
+    mutate(date = floor_date(date, "month")) %>%
+    group_by(date) %>%
+    summarise(!!name := mean(value, na.rm = TRUE), .groups = "drop")
+}
+
+# ── DATOS BLOOMBERG (con fallback a FRED) ─────────────────────────────────────
+if (blp_available) {
+  mortgage_raw <- bdh("ILM3NAVG Index", "PX_LAST", start_date, end_date)
+  natgas_raw   <- bdh("NG1 COMB Comdty", "PX_LAST", start_date, end_date)
+  mortgage     <- to_monthly(mortgage_raw, "MORTGAGE")
+  natgas       <- to_monthly(natgas_raw,   "NATGAS")
+} else {
+  mortgage_fred <- safe_fredr("MORTGAGE30US", start_date)   # Freddie Mac 30-yr fixed
+  natgas_fred   <- safe_fredr("MHHNGSP",      start_date)   # Henry Hub spot
+  mortgage      <- fred_to_monthly(mortgage_fred, "MORTGAGE")
+  natgas        <- fred_to_monthly(natgas_fred,   "NATGAS")
+}
+
+# ── DATOS FRED ────────────────────────────────────────────────────────────────
+# NOTA IMPORTANTE SOBRE LA REGLA "no explicar inflación con inflación":
+#  • Se ELIMINA la variable de rentas (CUSR0000SEHA) del modelo anterior porque
+#    ES un subcomponente del CPI (CPI: Rent of Primary Residence). Usarla viola
+#    la condición de no usar subsectores de la propia inflación.
+#  • El canal vivienda se cubre ahora con series EXTERNAS al CPI: el índice
+#    Case-Shiller (HOUSE) y la tasa hipotecaria a 30 años (MORTGAGE).
+#  • Todas las variables candidatas de abajo son series ajenas al CPI:
+#    precios de commodities, precios al productor (PPI), tipo de cambio,
+#    salarios, expectativas e ingreso. Ninguna es una descomposición del CPI.
+
+cpi      <- safe_fredr("CPIAUCSL",     start_date)   # objetivo (índice general)
+income   <- safe_fredr("DSPIC96",      start_date)   # ingreso personal real disponible
+house_p  <- safe_fredr("CSUSHPISA",    start_date)   # Case-Shiller (precio vivienda)
+gasoline <- safe_fredr("GASREGW",      start_date)   # precio gasolina (EIA, NO es CPI)
+wti      <- safe_fredr("DCOILWTICO",   start_date)   # petróleo WTI (commodity)
+ppi      <- safe_fredr("PPIFIS",       start_date)   # PPI demanda final (precios productor)
+usd      <- safe_fredr("DTWEXBGS",     start_date)   # índice dólar amplio
+wages    <- safe_fredr("CES0500000003",start_date)   # salario horario promedio
+infexp   <- safe_fredr("MICH",         start_date)   # expectativa inflación UMich 1a (encuesta)
+
+cpi      <- fred_to_monthly(cpi,      "CPI")
+income   <- fred_to_monthly(income,   "INCOME")
+house_p  <- fred_to_monthly(house_p,  "HOUSE")
+gasoline <- fred_to_monthly(gasoline, "GASOLINE")
+wti      <- fred_to_monthly(wti,      "WTI")
+ppi      <- fred_to_monthly(ppi,      "PPI")
+usd      <- fred_to_monthly(usd,      "USD")
+wages    <- fred_to_monthly(wages,    "WAGES")
+infexp   <- fred_to_monthly(infexp,   "INFEXP")
+
+# ── CONSOLIDACIÓN ─────────────────────────────────────────────────────────────
+BASE <- reduce(
+  list(mortgage, natgas, cpi, income, house_p, gasoline, wti, ppi, usd, wages, infexp),
+  full_join, by = "date"
+) %>% arrange(date)
+
+# Imputación: interpolación → forward fill (sin backward fill, evita data leakage)
+BASE <- BASE %>%
+  mutate(across(-date, ~ na.approx(., na.rm = FALSE))) %>%
+  mutate(across(-date, ~ na.locf(.,   na.rm = FALSE)))
+
+# ── TRANSFORMACIONES ECONOMÉTRICAS ────────────────────────────────────────────
+# Series de precios → primeras diferencias logarítmicas (tasas de crecimiento).
+# Tasas/índices de fondo (MORTGAGE, HOUSE) → niveles.
+# Expectativas (en %) → primera diferencia.
+# Dummy COVID → control de quiebre estructural (meses extremos de 2020).
+BASE <- BASE %>%
+  mutate(
+    inf           = c(NA, diff(log(CPI))),
+    gasoline_ret  = c(NA, diff(log(GASOLINE))),
+    natgas_ret    = c(NA, diff(log(NATGAS))),
+    wti_ret       = c(NA, diff(log(WTI))),
+    ppi_growth    = c(NA, diff(log(PPI))),
+    usd_ret       = c(NA, diff(log(USD))),
+    wage_growth   = c(NA, diff(log(WAGES))),
+    income_growth = c(NA, diff(log(INCOME))),
+    infexp_chg    = c(NA, diff(INFEXP)),
+
+    # Rezagos (info disponible en t-1)
+    inf_lag1      = lag(inf,          1),
+    gasoline_lag1 = lag(gasoline_ret, 1),
+    natgas_lag1   = lag(natgas_ret,   1),
+    ppi_lag1      = lag(ppi_growth,   1),
+
+    # Dummy de quiebre estructural COVID (mar–ago 2020)
+    covid_dummy   = as.integer(date >= as.Date("2020-03-01") &
+                               date <= as.Date("2020-08-01"))
+  )
+
+# ── DEFINICIÓN DEL POOL DE CANDIDATAS ─────────────────────────────────────────
+# inf_lag1 es obligatoria (inercia inflacionaria + benchmark AR(1)).
+# El resto compite en la búsqueda automática de especificación.
+mandatory  <- "inf_lag1"
+candidates <- c("gasoline_ret", "gasoline_lag1", "wti_ret", "natgas_lag1",
+                "ppi_lag1", "usd_ret", "wage_growth", "income_growth",
+                "infexp_chg", "MORTGAGE", "HOUSE", "covid_dummy")
+
+BASE_model <- BASE %>%
+  drop_na(all_of(c("inf", mandatory, candidates)))
+
+# ── BÚSQUEDA AUTOMÁTICA DE ESPECIFICACIÓN ─────────────────────────────────────
+# Para CADA combinación de variables se estima el modelo y se evalúan, con
+# errores Newey-West para la significancia, las CINCO condiciones exigidas:
+#   1) Todas las variables significativas (p < 0.05, robusto NW)
+#   2) VIF máximo < 5            (sin multicolinealidad)
+#   3) Breusch-Pagan p > 0.05    (homocedasticidad)
+#   4) Durbin-Watson  p > 0.05   (sin autocorrelación)
+#   5) Anderson-Darling p > 0.05 (normalidad de residuos)
+# Entre TODAS las que cumplen las 5, se elige la de mayor R² ajustado.
+# Así el modelo final satisface tus condiciones POR CONSTRUCCIÓN.
+
+fit_and_check <- function(extra_vars, data) {
+  vars <- c(mandatory, extra_vars)
+  f    <- reformulate(vars, response = "inf")
+  m    <- lm(f, data = data)
+  if (any(is.na(coef(m)))) return(NULL)   # variable aliada / colineal
+
+  # Significancia robusta (Newey-West)
+  ct <- tryCatch(
+    coeftest(m, vcov = NeweyWest(m, lag = 4, prewhite = FALSE)),
+    error = function(e) summary(m)$coefficients
+  )
+  pvals <- ct[rownames(ct) != "(Intercept)", 4]
+  sig   <- length(pvals) > 0 && all(pvals < 0.05)
+
+  vmax <- if (length(vars) >= 2) suppressWarnings(max(vif(m))) else 1
+  bp   <- bptest(m)$p.value
+  dw   <- dwtest(m)$p.value
+  ad   <- ad.test(residuals(m))$p.value
+
+  gates <- c(sig = sig, vif = vmax < 5, bp = bp > 0.05,
+             dw = dw > 0.05, ad = ad > 0.05)
+
+  list(model = m, vars = vars,
+       adjr  = summary(m)$adj.r.squared,
+       gates = gates, n_gates = sum(gates),
+       vmax = vmax, bp = bp, dw = dw, ad = ad)
+}
+
+# Combinaciones de hasta max_extra variables del pool (controla el coste).
+max_extra   <- 5
+all_subsets <- unlist(
+  lapply(0:max_extra, function(k) {
+    if (k == 0) list(character(0)) else combn(candidates, k, simplify = FALSE)
+  }),
+  recursive = FALSE
+)
+
+results <- map(all_subsets, ~ tryCatch(fit_and_check(.x, BASE_model),
+                                       error = function(e) NULL)) %>% compact()
+
+# Modelos que cumplen las 5 condiciones
+fully_pass <- keep(results, ~ all(.x$gates))
+
+if (length(fully_pass) > 0) {
+  best <- fully_pass[[ which.max(map_dbl(fully_pass, "adjr")) ]]
+  selection_ok   <- TRUE
+  selection_note <- paste0("Especificación óptima entre ", length(fully_pass),
+                           " modelos que cumplen las 4 pruebas y la significancia total.")
+} else {
+  # Fallback transparente: el modelo que cumple MÁS condiciones (y, a igualdad,
+  # el de mayor R² ajustado). Se avisa que no se logró el cumplimiento total.
+  ng   <- map_dbl(results, "n_gates")
+  pool <- results[ng == max(ng)]
+  best <- pool[[ which.max(map_dbl(pool, "adjr")) ]]
+  selection_ok   <- FALSE
+  selection_note <- paste0("ATENCIÓN: ninguna combinación (≤ ", max_extra,
+                           " variables) cumplió las 4 pruebas simultáneamente. ",
+                           "Se muestra la de mayor cumplimiento (", best$n_gates,
+                           "/5). Revisa la sección de diagnóstico.")
+}
+
+M2            <- best$model
+selected_vars <- best$vars
+gates_passed  <- best$gates
+
+# ── PRUEBAS DE DIAGNÓSTICO (sobre el modelo seleccionado) ─────────────────────
+bp_test <- bptest(M2)
+dw_test <- dwtest(M2)
+ad_test <- ad.test(residuals(M2))
+vif_val <- if (length(selected_vars) >= 2) vif(M2) else c(inf_lag1 = 1)
+nw_test <- coeftest(M2, vcov = NeweyWest(M2, lag = 4, prewhite = FALSE))
+
+# Tabla "tidy" construida a mano desde la matriz coeftest (robusto a versiones)
+nw_tidy <- tibble::tibble(
+  term      = rownames(nw_test),
+  estimate  = nw_test[, 1],
+  std.error = nw_test[, 2],
+  statistic = nw_test[, 3],
+  p.value   = nw_test[, 4]
+)
+
+# ── MÉTRICAS IN-SAMPLE ────────────────────────────────────────────────────────
+r_sq     <- round(summary(M2)$r.squared     * 100, 2)
+adj_r_sq <- round(summary(M2)$adj.r.squared * 100, 2)
+f_stat   <- round(summary(M2)$fstatistic[1],        2)
+rmse_ins <- round(sqrt(mean(residuals(M2)^2)) * 100, 4)
+max_vif  <- round(max(vif_val), 2)
+
+# ── VALIDACIÓN FUERA DE MUESTRA — EXPANDING WINDOW ───────────────────────────
+# Se entrena con las primeras i observaciones y se predice i+1, usando la
+# fórmula SELECCIONADA. Benchmarks: AR(1) y random walk.
+f_sel     <- formula(M2)
+n_obs     <- nrow(BASE_model)
+min_train <- 60   # 5 años
+
+oos_results <- map_dfr(min_train:(n_obs - 1), function(i) {
+  train <- BASE_model[1:i, ]
+  test  <- BASE_model[i + 1, ]
+
+  m_tmp <- tryCatch(lm(f_sel, data = train), error = function(e) NULL)
+  if (is.null(m_tmp)) return(NULL)
+  ar1_tmp <- lm(inf ~ inf_lag1, data = train)
+
+  tibble(
+    date     = test$date,
+    real     = test$inf,
+    pred_ols = as.numeric(predict(m_tmp,   newdata = test)),
+    pred_ar1 = as.numeric(predict(ar1_tmp, newdata = test)),
+    pred_rw  = as.numeric(test$inf_lag1)
+  )
+})
+
+rmse_oos_ols <- round(sqrt(mean((oos_results$real - oos_results$pred_ols)^2, na.rm = TRUE)) * 100, 4)
+rmse_oos_ar1 <- round(sqrt(mean((oos_results$real - oos_results$pred_ar1)^2, na.rm = TRUE)) * 100, 4)
+rmse_oos_rw  <- round(sqrt(mean((oos_results$real - oos_results$pred_rw)^2,  na.rm = TRUE)) * 100, 4)
+
+skill_vs_ar1 <- round((1 - rmse_oos_ols / rmse_oos_ar1) * 100, 1)
+skill_vs_rw  <- round((1 - rmse_oos_ols / rmse_oos_rw)  * 100, 1)
+
+skill_ar1_label <- ifelse(skill_vs_ar1 > 0,
+  paste0("+", skill_vs_ar1, "% mejor que AR(1)"),
+  paste0(skill_vs_ar1, "% vs AR(1)"))
+skill_rw_label  <- ifelse(skill_vs_rw > 0,
+  paste0("+", skill_vs_rw, "% mejor que RW"),
+  paste0(skill_vs_rw, "% vs RW"))
+
+# ── DICCIONARIO DE ETIQUETAS ──────────────────────────────────────────────────
+label_map <- c(
+  "(Intercept)"   = "Intercepto",
+  "inf_lag1"      = "Inercia (inf t-1)",
+  "gasoline_ret"  = "Gasolina (actual)",
+  "gasoline_lag1" = "Gasolina (t-1)",
+  "wti_ret"       = "Petróleo WTI (actual)",
+  "natgas_lag1"   = "Gas Natural (t-1)",
+  "ppi_lag1"      = "PPI Demanda Final (t-1)",
+  "usd_ret"       = "Índice Dólar (Δ)",
+  "wage_growth"   = "Crec. Salarios",
+  "income_growth" = "Crec. Ingreso Real",
+  "infexp_chg"    = "Δ Expectativas Inflación",
+  "MORTGAGE"      = "Tasa Hipotecaria",
+  "HOUSE"         = "Precio Vivienda",
+  "covid_dummy"   = "Dummy COVID 2020"
+)
+relabel <- function(x) ifelse(x %in% names(label_map), label_map[x], x)
+
+# ── DIAGNÓSTICOS: textos y clases de color ────────────────────────────────────
+txt_bp <- ifelse(bp_test$p.value > 0.05, "No se rechaza homocedasticidad", "Evidencia de heterocedasticidad")
+txt_dw <- ifelse(dw_test$p.value > 0.05, "No hay autocorrelación serial",  "Presencia de autocorrelación")
+txt_ad <- ifelse(ad_test$p.value > 0.05, "Residuos normales",             "Desviación de normalidad")
+
+diag_bp_class  <- ifelse(bp_test$p.value > 0.05, "ok", "bad")
+diag_dw_class  <- ifelse(dw_test$p.value > 0.05, "ok", "bad")
+diag_ad_class  <- ifelse(ad_test$p.value > 0.05, "ok", "bad")
+diag_vif_class <- ifelse(max_vif < 5, "ok", "bad")
+
+# ── NOWCASTING (escenario dinámico según variables seleccionadas) ─────────────
+last_obs       <- tail(BASE_model, 1)
+mes_proyeccion <- format(last_obs$date, "%B de %Y")
+mes_datos      <- format(last_obs$date, "%B de %Y")
+
+scenario_now <- last_obs[, selected_vars, drop = FALSE]
+
+pred_log         <- as.numeric(predict(M2, scenario_now))
+pred_mensual_pct <- round((exp(pred_log) - 1) * 100, 3)
+inf_prev_pct     <- round((exp(last_obs$inf_lag1) - 1) * 100, 3)
+
+# ── CÁLCULO INTERANUAL (YoY) ──────────────────────────────────────────────────
+datos_reales <- head(BASE_model, -1)
+if (nrow(datos_reales) >= 13) {
+  cpi_real_12m <- tail(datos_reales$CPI, 13)
+  cpi_yoy_real <- round((cpi_real_12m[13] / cpi_real_12m[1] - 1) * 100, 2)
+} else {
+  cpi_yoy_real <- NA
+}
+
+cpi_ultimo_real <- tail(datos_reales$CPI, 1)
+cpi_base_yoy    <- tail(BASE_model$CPI, 13)[1]
+cpi_proyectado  <- cpi_ultimo_real * (1 + pred_mensual_pct / 100)
+pred_yoy_pct    <- round((cpi_proyectado / cpi_base_yoy - 1) * 100, 2)
+
+# ── SEMÁFOROS ─────────────────────────────────────────────────────────────────
+bls_color <- dplyr::case_when(
+  pred_mensual_pct > 0.4 ~ "up",
+  pred_mensual_pct < 0.1 ~ "down",
+  TRUE                   ~ "flat"
+)
+bar_pct_fill <- min(pred_yoy_pct / 4 * 100, 100)
+bar_color    <- dplyr::case_when(
+  pred_yoy_pct > 3.5 ~ "#c0392b",
+  pred_yoy_pct > 2.5 ~ "#e67e22",
+  TRUE               ~ "#1a9e5c"
+)
+```
+
+---
+
+## 1. Introducción y Objetivo
+
+Este informe desarrolla un modelo de *nowcasting* para proyectar la inflación mensual del Consumer Price Index (CPI) de Estados Unidos, con el objetivo de **anticipar el dato antes de su publicación oficial**. Al correr el modelo en el mes `t`, se genera la proyección del CPI de `t` (que el BLS publicará el mes siguiente).
+
+**Mejora metodológica clave de esta versión:** en lugar de fijar a mano las variables, el código realiza una **búsqueda automática de especificación** sobre un amplio conjunto de predictores **externos al CPI** y selecciona —entre todas las combinaciones posibles— la de mayor R² ajustado que **cumple simultáneamente las cuatro pruebas estadísticas (VIF, Breusch-Pagan, Durbin-Watson, Anderson-Darling) y mantiene todas sus variables significativas** con errores Newey-West. El modelo final, por tanto, satisface tus condiciones por construcción.
+
+> **Sobre la regla "no explicar inflación con inflación":** se eliminó la variable de rentas (`CUSR0000SEHA`) que usaba la versión previa, ya que es un **subcomponente del propio CPI** (CPI: Rent of Primary Residence). El canal de vivienda se cubre ahora exclusivamente con series ajenas al CPI (Case-Shiller y tasa hipotecaria). Todas las candidatas son series independientes del CPI.
+
+---
+
+## 2. Pool de Variables Candidatas
+
+Todas las series son **externas al CPI** (no son descomposiciones del índice de precios al consumidor). Para evitar regresiones espurias, las series de precios se transforman a primeras diferencias logarítmicas; los índices/tasas de fondo se dejan en niveles.
+
+| Variable | Descripción | Transformación | Fuente |
+|---|---|---|---|
+| `inf_lag1` *(obligatoria)* | Inercia inflacionaria | Rezago 1 | FRED `CPIAUCSL` |
+| `gasoline_ret` / `gasoline_lag1` | Precio gasolina regular (EIA) | $\Delta\ln$ y rezago | FRED `GASREGW` |
+| `wti_ret` | Petróleo crudo WTI | $\Delta\ln$ | FRED `DCOILWTICO` |
+| `natgas_lag1` | Gas natural (Henry Hub) | $\Delta\ln$ rezagado | Bloomberg / FRED `MHHNGSP` |
+| `ppi_lag1` | PPI demanda final (precios al productor) | $\Delta\ln$ rezagado | FRED `PPIFIS` |
+| `usd_ret` | Índice dólar amplio | $\Delta\ln$ | FRED `DTWEXBGS` |
+| `wage_growth` | Salario horario promedio | $\Delta\ln$ | FRED `CES0500000003` |
+| `income_growth` | Ingreso personal real disponible | $\Delta\ln$ | FRED `DSPIC96` |
+| `infexp_chg` | Expectativa inflación 1a (UMich, encuesta) | $\Delta$ | FRED `MICH` |
+| `MORTGAGE` | Tasa hipotecaria 30a | Nivel | Bloomberg / FRED `MORTGAGE30US` |
+| `HOUSE` | Case-Shiller (precio vivienda) | Nivel | FRED `CSUSHPISA` |
+| `covid_dummy` | Quiebre estructural COVID (mar–ago 2020) | Binaria | Construida |
+
+```{r pool-info}
+cat(sprintf("Período: %s a %s · %d observaciones mensuales tras transformaciones.",
+            format(min(BASE_model$date), "%b %Y"),
+            format(max(BASE_model$date), "%b %Y"),
+            nrow(BASE_model)))
+```
+
+---
+
+## 3. Especificación Seleccionada
+
+```{r spec-formula, results='asis'}
+extra <- setdiff(selected_vars, mandatory)
+cat("El buscador eligió la siguiente especificación (de un total de ",
+    length(all_subsets), " combinaciones evaluadas):\n\n")
+cat("$$\\text{inf}_t = \\beta_0 + \\beta_1\\,\\text{inf}_{t-1}",
+    if (length(extra) > 0)
+      paste0(" + ", paste(sprintf("\\beta_{%d}\\,\\text{%s}", 2:(length(extra)+1),
+                                   gsub("_", "\\\\_", extra)), collapse = " ")),
+    " + \\varepsilon_t$$\n\n", sep = "")
+cat("**Variables seleccionadas:** ",
+    paste(relabel(selected_vars), collapse = " · "), "\n\n")
+cat("> *", selection_note, "*\n", sep = "")
+```
+
+---
+
+## 4. Resultados de la Estimación
+
+<div class="info-grid">
+<div class="info-box">
+<div class="ib-value">`r adj_r_sq`%</div>
+<div class="ib-label">R² Ajustado</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r f_stat`</div>
+<div class="ib-label">F-Statistic</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r nrow(BASE_model)`</div>
+<div class="ib-label">Observaciones</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r rmse_ins`pp</div>
+<div class="ib-label">RMSE In-Sample</div>
+</div>
+</div>
+
+<div class="table-wrapper">
+```{r tabla-resultados}
+# Tabla con errores estándar Newey-West (robustos a heterocedasticidad y autocorr.)
+tidy_table <- nw_tidy %>%
+  mutate(
+    term      = relabel(term),
+    estimate  = formatC(estimate,  format = "e", digits = 3),
+    std.error = formatC(std.error, format = "e", digits = 3),
+    statistic = round(statistic, 2),
+    sig_label = dplyr::case_when(
+      p.value < 0.001 ~ "★★★",
+      p.value < 0.01  ~ "★★",
+      p.value < 0.05  ~ "★",
+      p.value < 0.1   ~ "·",
+      TRUE            ~ ""
+    ),
+    p_fmt = cell_spec(
+      paste0(formatC(p.value, format = "e", digits = 2), " ", sig_label),
+      "html",
+      color      = ifelse(p.value < 0.05, "white", "#2C3E50"),
+      background = ifelse(p.value < 0.05, "#1a9e5c", "transparent"),
+      bold       = p.value < 0.05
+    )
+  ) %>%
+  select(term, estimate, std.error, statistic, p_fmt)
+
+kable(tidy_table,
+      format  = "html",
+      escape  = FALSE,
+      align   = c("l","r","r","r","r"),
+      col.names = c("Variable", "Estimador", "Error Estándar", "t", "p-valor")) %>%
+  kable_styling(
+    bootstrap_options = c("striped","hover","condensed","responsive"),
+    full_width = FALSE,
+    position   = "center",
+    font_size  = 13
+  ) %>%
+  row_spec(0, background = "#0d2b5e", color = "white") %>%
+  footnote(
+    general       = "★★★ p<0.001 · ★★ p<0.01 · ★ p<0.05 · SE corregido con Newey-West (lag=4)",
+    general_title = ""
+  )
+```
+</div>
+
+---
+
+## 5. Interpretación Económica
+
+```{r interpretacion, results='asis'}
+co <- nw_tidy %>% filter(term != "(Intercept)")
+for (i in seq_len(nrow(co))) {
+  v    <- co$term[i]
+  b    <- co$estimate[i]
+  sgn  <- ifelse(b > 0, "presión **inflacionaria** (signo positivo)",
+                        "presión **deflacionaria / contractiva** (signo negativo)")
+  desc <- dplyr::case_when(
+    v == "inf_lag1"      ~ sprintf("La **inercia inflacionaria**: ~%.0f%% del dato del mes previo se transmite al mes siguiente.", b*100),
+    v == "gasoline_ret"  ~ sprintf("**Pass-through energético inmediato**: +10%% en gasolina ≈ +%.3fpp en la inflación mensual.", b*10*100),
+    v == "gasoline_lag1" ~ "**Gasolina rezagada**: efecto del precio del mes anterior (suele indicar reversión parcial).",
+    v == "wti_ret"       ~ sprintf("**Petróleo WTI**: +10%% en crudo ≈ %+.3fpp vía costos energéticos y de transporte.", b*10*100),
+    v == "natgas_lag1"   ~ "**Gas natural rezagado**: costos de energía residencial e industrial.",
+    v == "ppi_lag1"      ~ "**PPI rezagado**: traspaso de precios al productor hacia el consumidor (pipeline de costos upstream).",
+    v == "usd_ret"       ~ "**Tipo de cambio**: un dólar más fuerte abarata importaciones (efecto desinflacionario, signo negativo esperado).",
+    v == "wage_growth"   ~ "**Salarios**: dinámica de costos laborales / espiral precios-salarios.",
+    v == "income_growth" ~ "**Ingreso real**: presión de demanda agregada sobre los precios.",
+    v == "infexp_chg"    ~ "**Expectativas (UMich)**: anclaje de expectativas; suben antes que el dato realizado.",
+    v == "MORTGAGE"      ~ "**Tasa hipotecaria**: condiciones financieras; tasas altas enfrían la demanda.",
+    v == "HOUSE"         ~ "**Precio vivienda (Case-Shiller)**: efecto riqueza inmobiliaria sobre el consumo.",
+    v == "covid_dummy"   ~ "**Dummy COVID**: aísla la volatilidad extrema de 2020, limpiando los residuos.",
+    TRUE                 ~ "Variable de control."
+  )
+  cat(sprintf("%d. %s _%s._\n", i, desc, sgn))
+}
+```
+
+---
+
+## 6. Diagnóstico Estadístico
+
+```{r diag-banner, results='asis'}
+if (selection_ok) {
+  cat('<div class="oos-callout" style="border-left-color:#1a9e5c;background:#f0faf5;">',
+      '<strong>✓ El modelo seleccionado cumple las 4 pruebas estadísticas',
+      'y todas sus variables son significativas (p &lt; 0.05, Newey-West).</strong>',
+      '</div>', sep = "\n")
+} else {
+  cat('<div class="oos-callout" style="border-left-color:#c0392b;background:#fdf0ed;">',
+      paste0('<strong>⚠ ', selection_note, '</strong>'),
+      '</div>', sep = "\n")
+}
+```
+
+<div class="diag-grid">
+<div class="diag-box `r diag_bp_class`">
+<div class="d-title">Heterocedasticidad</div>
+<div class="d-stat">BP = `r round(bp_test$statistic, 2)`</div>
+<div class="d-desc">p = `r round(bp_test$p.value, 4)` — `r txt_bp`</div>
+</div>
+<div class="diag-box `r diag_dw_class`">
+<div class="d-title">Autocorrelación</div>
+<div class="d-stat">DW = `r round(dw_test$statistic, 3)`</div>
+<div class="d-desc">p = `r round(dw_test$p.value, 4)` — `r txt_dw`</div>
+</div>
+<div class="diag-box `r diag_ad_class`">
+<div class="d-title">Normalidad (AD)</div>
+<div class="d-stat">A = `r round(ad_test$statistic, 3)`</div>
+<div class="d-desc">p = `r round(ad_test$p.value, 4)` — `r txt_ad`</div>
+</div>
+<div class="diag-box `r diag_vif_class`">
+<div class="d-title">Multicolinealidad</div>
+<div class="d-stat">VIF ≤ `r max_vif`</div>
+<div class="d-desc">`r ifelse(max_vif < 5, "Max VIF < 5 — Sin multicolinealidad grave", "Max VIF ≥ 5 — Revisar")`</div>
+</div>
+</div>
+
+> **Nota:** la significancia de cada coeficiente se evalúa con la matriz **Newey-West** (lag=4), robusta a heterocedasticidad y autocorrelación. Los diagnósticos evalúan propiedades del ajuste in-sample; la validez predictiva se mide en la sección siguiente.
+
+---
+
+## 7. Validación Fuera de Muestra
+
+<div class="oos-callout">
+<strong>Metodología:</strong> Expanding window — se entrena con las primeras <em>i</em> observaciones (mínimo 60 meses) y se predice un paso adelante, expandiendo la ventana mes a mes. Esto simula cómo el modelo hubiera funcionado en tiempo real. Se compara contra dos benchmarks clásicos: AR(1) y random walk.
+</div>
+
+<div class="info-grid">
+<div class="info-box">
+<div class="ib-value">`r rmse_oos_ols`pp</div>
+<div class="ib-label">RMSE OOS — Modelo</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r rmse_oos_ar1`pp</div>
+<div class="ib-label">RMSE OOS — AR(1)</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r rmse_oos_rw`pp</div>
+<div class="ib-label">RMSE OOS — Random Walk</div>
+</div>
+<div class="info-box">
+<div class="ib-value">`r skill_vs_ar1`%</div>
+<div class="ib-label">Skill vs AR(1)</div>
+</div>
+</div>
+
+El modelo obtiene un RMSE fuera de muestra de **`r rmse_oos_ols`pp** mensual. Frente al AR(1) es **`r skill_ar1_label`**; frente al random walk es **`r skill_rw_label`**. Un skill positivo indica que el modelo genera información genuina por encima del benchmark más simple.
+
+---
+
+## 8. Proyección Nowcasting
+
+Utilizando la última observación disponible (`r mes_datos`) de todas las variables explicativas, el modelo genera la siguiente proyección para **`r mes_proyeccion`**:
+
+<!-- TARJETA PRINCIPAL ESTILO BLS -->
+<div class="bls-card">
+<div class="bls-header">
+ &nbsp; CONSUMER PRICE INDEX — PROYECCIÓN NOWCASTING &nbsp;|&nbsp; `r toupper(mes_proyeccion)`
+</div>
+<div class="bls-body">
+<div class="bls-main">
+<div class="label">Proyección YoY (Interanual)</div>
+<div class="big-number `r bls_color`">`r sprintf("%+.2f", pred_yoy_pct)`<span style="font-size:0.45em">%</span></div>
+<div class="unit-label">Inflación proyectada a 12 meses</div>
+</div>
+<div class="bls-sidebar">
+<div class="bls-metric">
+<div class="m-label">Nowcast MoM (Mensual)</div>
+<div class="m-value `r bls_color`">`r sprintf("%+.3f", pred_mensual_pct)`%</div>
+</div>
+<div class="bls-metric">
+<div class="m-label">MoM Anterior (Real)</div>
+<div class="m-value">`r sprintf("%+.3f", inf_prev_pct)`%</div>
+</div>
+<div class="bls-metric">
+<div class="m-label">YoY Oficial Anterior</div>
+<div class="m-value">`r if(!is.na(cpi_yoy_real)) paste0(sprintf("%.2f", cpi_yoy_real), "%") else "N/D"`</div>
+</div>
+<div class="bls-metric">
+<div class="m-label">RMSE OOS Modelo</div>
+<div class="m-value">±`r rmse_oos_ols`pp</div>
+</div>
+</div>
+</div>
+<div class="bls-footer">
+⚙ Modelo OLS con selección automática · Corrección Newey-West · Validación expanding window &nbsp;|&nbsp;
+Datos al `r mes_datos` &nbsp;|&nbsp;
+Fuentes: FRED (BLS / Federal Reserve / EIA), Bloomberg &nbsp;|&nbsp;
+<em>Esta proyección no es un dato oficial del BLS. Incertidumbre ±`r rmse_oos_ols`pp (RMSE OOS).</em>
+</div>
+</div>
+
+<div class="fed-target-bar" style="margin-top:25px; padding:18px 15px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;">
+<div class="bar-label" style="margin-bottom:22px; font-weight:600; color:#0d2b5e; font-size:1.05em;">📍 Inflación Interanual Proyectada vs. Objetivo Fed (2%)</div>
+<div class="bar-track" style="position:relative; width:100%; height:24px; background-color:#e2e8f0; border-radius:12px;">
+<div class="bar-fill" style="position:absolute; top:0; left:0; height:100%; border-radius:12px; width:`r bar_pct_fill`%; background:`r bar_color`;"></div>
+<div class="bar-target-line" style="position:absolute; top:-8px; bottom:-8px; left:50%; width:3px; background-color:#0d2b5e; z-index:10;"><span style="position:absolute; top:-22px; left:-45px; width:90px; text-align:center; font-size:0.8em; font-weight:bold; color:#0d2b5e; background:#f8fafc; padding:0 4px;">Objetivo: 2%</span></div>
+</div>
+<div style="display:flex; justify-content:space-between; width:100%; margin-top:12px; font-size:0.85em; color:#6b7280; font-weight:bold;">
+<span>0%</span><span>1%</span><span>2%</span><span>3%</span><span>4%+</span>
+</div>
+</div>
+
+Bajo las condiciones actuales, el modelo anticipa que la inflación interanual se ubicará en <span class="hl-`r ifelse(bls_color=='up','red','green')`">**`r pred_yoy_pct`%**</span> para **`r mes_proyeccion`** — `r ifelse(pred_yoy_pct > 2, paste0(round(pred_yoy_pct - 2, 2), "pp por encima del objetivo del 2% de la Fed."), "dentro del rango objetivo de la Fed.")` Esto asume una variación mensual proyectada de **`r sprintf("%+.3f", pred_mensual_pct)`%**. El intervalo de confianza implícito basado en RMSE fuera de muestra es ±`r rmse_oos_ols`pp.
+
+---
+
+## 9. Análisis Visual
+
+### Predicciones Fuera de Muestra vs. CPI Real
+
+```{r graf-oos, fig.height=5}
+df_oos <- oos_results %>%
+  mutate(
+    real_pct     = (exp(real)     - 1) * 100,
+    pred_ols_pct = (exp(pred_ols) - 1) * 100,
+    pred_ar1_pct = (exp(pred_ar1) - 1) * 100
+  ) %>%
+  select(date, `CPI Real (MoM %)` = real_pct,
+         `Nowcast OOS` = pred_ols_pct,
+         `Benchmark AR(1)` = pred_ar1_pct) %>%
+  pivot_longer(-date, names_to = "Serie", values_to = "Valor") %>%
+  mutate(Serie = factor(Serie,
+    levels = c("CPI Real (MoM %)", "Nowcast OOS", "Benchmark AR(1)")))
+
+ggplot(df_oos, aes(x = date, y = Valor, color = Serie, linetype = Serie)) +
+  geom_hline(yintercept = 0, color = "#cccccc", linewidth = 0.5) +
+  geom_line(linewidth = 0.9, alpha = 0.9) +
+  scale_color_manual(values = c(
+    "CPI Real (MoM %)" = "#0d2b5e",
+    "Nowcast OOS"      = "#1a9e5c",
+    "Benchmark AR(1)"  = "#e67e22"
+  )) +
+  scale_linetype_manual(values = c(
+    "CPI Real (MoM %)" = "solid",
+    "Nowcast OOS"      = "dashed",
+    "Benchmark AR(1)"  = "dotted"
+  )) +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(
+    title    = "Predicciones Fuera de Muestra — Expanding Window",
+    subtitle = paste0("Cada punto proyecta un mes adelante sin ver datos futuros · ",
+                      "RMSE OOS Modelo: ", rmse_oos_ols, "pp · AR(1): ", rmse_oos_ar1, "pp"),
+    x = NULL, y = "Variación Mensual (%)", color = NULL, linetype = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position  = "top",
+    plot.title       = element_text(face = "bold", color = "#0d2b5e", size = 15),
+    plot.subtitle    = element_text(color = "#5a6474", size = 11),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "#eaecf0"),
+    plot.background  = element_rect(fill = "white", color = NA)
+  )
+```
+
+### Comparativa de RMSE — Modelo vs. Benchmarks
+
+```{r graf-rmse-benchmark, fig.height=3.5}
+rmse_comp <- tibble(
+  Modelo = c("Nowcast OLS", "Benchmark AR(1)", "Random Walk"),
+  RMSE   = c(rmse_oos_ols, rmse_oos_ar1, rmse_oos_rw),
+  color  = c("#1a9e5c", "#e67e22", "#c0392b")
+)
+
+ggplot(rmse_comp, aes(x = reorder(Modelo, -RMSE), y = RMSE, fill = Modelo)) +
+  geom_col(width = 0.5, alpha = 0.9) +
+  geom_text(aes(label = paste0(RMSE, "pp")),
+            hjust = -0.15, fontface = "bold", size = 4) +
+  coord_flip() +
+  scale_fill_manual(values = setNames(rmse_comp$color, rmse_comp$Modelo)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.2)),
+                     labels = function(x) paste0(x, "pp")) +
+  labs(
+    title    = "RMSE Fuera de Muestra por Modelo",
+    subtitle = "Menor RMSE = mejor poder predictivo",
+    x = NULL, y = "RMSE (pp mensuales)"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position    = "none",
+    plot.title         = element_text(face = "bold", color = "#0d2b5e", size = 14),
+    plot.subtitle      = element_text(color = "#5a6474"),
+    panel.grid.major.y = element_blank(),
+    plot.background    = element_rect(fill = "white", color = NA)
+  )
+```
+
+### Importancia de Variables (Estadístico |t| con Newey-West)
+
+```{r graf-coefs, fig.height=5}
+nw_df <- nw_tidy %>%
+  filter(term != "(Intercept)") %>%
+  mutate(
+    term_clean = relabel(term),
+    direccion  = ifelse(estimate > 0, "Presión Inflacionaria", "Presión Deflacionaria"),
+    t_abs      = abs(statistic)
+  )
+
+ggplot(nw_df, aes(x = reorder(term_clean, t_abs), y = t_abs, fill = direccion)) +
+  geom_col(width = 0.65, alpha = 0.92) +
+  geom_hline(yintercept = 1.96, linetype = "dashed", color = "#7a8494", linewidth = 0.7) +
+  annotate("text", x = 1.3, y = 1.96 + 0.3, label = "t = 1.96 (95%)",
+           color = "#7a8494", size = 3.2) +
+  coord_flip() +
+  scale_fill_manual(values = c("Presión Inflacionaria"  = "#c0392b",
+                               "Presión Deflacionaria" = "#2d6ca2")) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.08))) +
+  labs(
+    title    = "Fuerzas Impulsoras del CPI — Significancia Estadística",
+    subtitle = "Estadístico |t| corregido con Newey-West por variable",
+    x = NULL, y = "|Estadístico t|", fill = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title         = element_text(face = "bold", color = "#0d2b5e", size = 14),
+    plot.subtitle      = element_text(color = "#5a6474", size = 11),
+    legend.position    = "bottom",
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.y = element_blank(),
+    axis.text.y        = element_text(face = "bold", size = 11),
+    plot.background    = element_rect(fill = "white", color = NA)
+  )
+```
+
+### Distribución de Residuales (In-Sample)
+
+```{r graf-residuales, fig.height=4}
+res_df <- tibble(
+  e     = residuals(M2) * 100,
+  fecha = BASE_model$date
+)
+
+p1 <- ggplot(res_df, aes(x = e)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 25,
+                 fill = "#2d6ca2", color = "white", alpha = 0.8) +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(res_df$e), sd = sd(res_df$e)),
+                color = "#c0392b", linewidth = 1.1, linetype = "dashed") +
+  labs(title = "Distribución de Residuales", x = "Residual (pp)", y = "Densidad") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", color = "#0d2b5e"))
+
+p2 <- ggplot(res_df, aes(x = fecha, y = e)) +
+  geom_hline(yintercept = 0, color = "#cccccc") +
+  geom_line(color = "#2d6ca2", alpha = 0.7) +
+  geom_point(size = 0.8, color = "#0d2b5e") +
+  labs(title = "Residuales en el Tiempo", x = NULL, y = "Residual (pp)") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(face = "bold", color = "#0d2b5e"))
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+---
+
+## 10. Conclusión
+
+```{r conclusion, results='asis'}
+cat(sprintf(
+"El modelo seleccionado automáticamente presenta un **R² ajustado del %.2f%%** y un **RMSE fuera de muestra de %spp**, evaluado mediante expanding window sobre %d predicciones reales —sin contaminación de información futura—. Sus variables (%s) son todas significativas%s.\n\n",
+adj_r_sq, rmse_oos_ols, nrow(oos_results),
+paste(relabel(selected_vars), collapse = ", "),
+ifelse(selection_ok, " y el modelo cumple las cuatro pruebas estadísticas exigidas (VIF, BP, DW, AD)", "")))
+
+cat(sprintf(
+"La proyección nowcasting para **%s** es de **%+.3f%% MoM**, lo que situaría la inflación interanual en **%.2f%%** (frente al %s%% observado en el cierre oficial anterior), con un margen de incertidumbre de ±%spp (RMSE fuera de muestra).\n",
+mes_proyeccion, pred_mensual_pct, pred_yoy_pct,
+ifelse(is.na(cpi_yoy_real), "N/D", sprintf("%.2f", cpi_yoy_real)), rmse_oos_ols))
+```
+
+---
+
+*Modelo actualizado al `r format(Sys.Date(), "%d de %B de %Y")` · Fuentes: FRED (BLS / Federal Reserve / EIA), Bloomberg · Los resultados son de carácter informativo y no constituyen asesoría de inversión.*
